@@ -31,6 +31,9 @@ type VecString interface {
 	// PrefixMatch returns true if V[ind] == Prefix of str, and returns false otherwise
 	PrefixMatch(ind uint64, str string) (uint64, bool)
 
+	// OffsetAndLen returns the offset and the length of V[ind]
+	OffsetAndLen(ind uint64) (uint64, uint64)
+
 	// PushBack set V[Num] = v, and Num++
 	PushBack(v string)
 
@@ -83,15 +86,15 @@ type vecStringImpl struct {
 	bytes []byte
 }
 
-func (vv vecStringImpl) interval(ind uint64) (uint64, uint64) {
+func (vv vecStringImpl) OffsetAndLen(ind uint64) (uint64, uint64) {
 	onePos := vv.lens.Select(ind, true)
-	beg := onePos - ind
+	offset := onePos - ind
 	l := vv.lens.RunZeros(onePos + 1)
-	return beg, l
+	return offset, l
 }
 
 func (vv vecStringImpl) Get(ind uint64) string {
-	beg, l := vv.interval(ind)
+	beg, l := vv.OffsetAndLen(ind)
 	return string(vv.bytes[beg : beg+l])
 }
 
@@ -112,7 +115,7 @@ func (vv vecStringImpl) IthCharInd(i uint64) uint64 {
 }
 
 func (vv vecStringImpl) Find(ind uint64, c byte) bool {
-	beg, l := vv.interval(ind)
+	beg, l := vv.OffsetAndLen(ind)
 	for i := uint64(0); i < l; i++ {
 		if c == vv.bytes[beg+i] {
 			return true
@@ -122,7 +125,7 @@ func (vv vecStringImpl) Find(ind uint64, c byte) bool {
 }
 
 func (vv vecStringImpl) FindZeroRank(ind uint64, c byte) (uint64, bool) {
-	beg, l := vv.interval(ind)
+	beg, l := vv.OffsetAndLen(ind)
 	for i := uint64(0); i < l; i++ {
 		if c == vv.bytes[beg+i] {
 			return beg + i, true
