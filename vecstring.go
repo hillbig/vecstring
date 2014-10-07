@@ -2,7 +2,6 @@
 package vecstring
 
 import (
-	"bytes"
 	"github.com/hillbig/rsdic"
 	"github.com/ugorji/go/codec"
 )
@@ -88,8 +87,9 @@ type vecStringImpl struct {
 
 func (vv vecStringImpl) OffsetAndLen(ind uint64) (uint64, uint64) {
 	onePos := vv.lens.Select(ind, true)
-	offset := onePos - ind
-	l := vv.lens.RunZeros(onePos + 1)
+	nextOnePos := vv.lens.Select(ind+1, true)
+	offset := onePos - ind // zeroNum
+	l := nextOnePos - onePos - 1
 	return offset, l
 }
 
@@ -162,9 +162,8 @@ func (vb *vecStringImpl) PushBack(str string) {
 }
 
 func (vs vecStringImpl) MarshalBinary() (out []byte, err error) {
-	w := new(bytes.Buffer)
-	var bh codec.BincHandle
-	enc := codec.NewEncoder(w, &bh)
+	var bh codec.MsgpackHandle
+	enc := codec.NewEncoderBytes(&out, &bh)
 	err = enc.Encode(vs.lens)
 	if err != nil {
 		return
@@ -173,14 +172,13 @@ func (vs vecStringImpl) MarshalBinary() (out []byte, err error) {
 	if err != nil {
 		return
 	}
-	out = w.Bytes()
+
 	return
 }
 
 func (vs *vecStringImpl) UnmarshalBinary(in []byte) (err error) {
-	r := bytes.NewBuffer(in)
-	var bh codec.BincHandle
-	dec := codec.NewDecoder(r, &bh)
+	var bh codec.MsgpackHandle
+	dec := codec.NewDecoderBytes(in, &bh)
 	err = dec.Decode(&vs.lens)
 	if err != nil {
 		return
@@ -189,6 +187,5 @@ func (vs *vecStringImpl) UnmarshalBinary(in []byte) (err error) {
 	if err != nil {
 		return
 	}
-
 	return nil
 }

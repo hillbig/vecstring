@@ -8,7 +8,7 @@ import (
 
 const (
 	testIter = 10
-	numMax   = 10000
+	numMax   = 20000
 )
 
 func TestVecString(t *testing.T) {
