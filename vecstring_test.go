@@ -17,6 +17,24 @@ func TestVecString(t *testing.T) {
 		So(vs.Num(), ShouldEqual, 0)
 		So(vs.TotalLen(), ShouldEqual, 0)
 	})
+	Convey("When three strings are set", t, func() {
+		vs := NewForWX()
+		vs.PushBack("abc")
+		vs.PushBack("de")
+		vs.PushBack("efgh")
+		So(vs.GetByte(5), ShouldEqual, byte('e'))
+		So(vs.ExactMatch(1, "de"), ShouldBeTrue)
+		So(vs.ExactMatch(1, "dee"), ShouldBeFalse)
+		l, ok := vs.PrefixMatch(2, "efgh")
+		So(ok, ShouldBeTrue)
+		So(l, ShouldEqual, 4)
+		l, ok = vs.PrefixMatch(2, "efghi")
+		So(ok, ShouldBeTrue)
+		So(l, ShouldEqual, 4)
+		l, ok = vs.PrefixMatch(2, "efggi")
+		So(ok, ShouldBeFalse)
+		So(l, ShouldEqual, 3)
+	})
 	Convey("When large VecString is build", t, func() {
 		for iter := 0; iter < testIter; iter++ {
 			num := rand.Int()%numMax + 1
@@ -63,4 +81,5 @@ func TestVecString(t *testing.T) {
 			}
 		}
 	})
+
 }

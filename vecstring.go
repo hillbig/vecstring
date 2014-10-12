@@ -33,14 +33,14 @@ type VecString interface {
 	// OffsetAndLen returns the offset and the length of V[ind]
 	OffsetAndLen(ind uint64) (uint64, uint64)
 
-	// PushBack set V[Num] = v, and Num++
-	PushBack(v string)
-
 	// MarshalBinary encodes VecString into a binary form and returns the result.
 	MarshalBinary() ([]byte, error)
 
-	// UnmarshalBinary decodes the FixVec from a binary from generated MarshalBinary
+	// UnmarshalBinary decodes the FixVec form a binary from generated MarshalBinary
 	UnmarshalBinary([]byte) error
+
+	// PushBack set V[Num] = v, and Num++
+	PushBack(v string)
 }
 
 // VecStringForWX represents a vector of strings, and provides extended interface
@@ -142,9 +142,7 @@ func (vv vecStringImpl) ExactMatch(ind uint64, str string) bool {
 }
 
 func (vv vecStringImpl) PrefixMatch(ind uint64, str string) (uint64, bool) {
-	onePos := vv.lens.Select(ind, true)
-	beg := onePos - ind
-	l := vv.lens.RunZeros(onePos + 1)
+	beg, l := vv.OffsetAndLen(ind)
 	for i := uint64(0); i < l; i++ {
 		if int(i) >= len(str) || vv.bytes[beg+i] != str[i] {
 			return i, false
