@@ -135,9 +135,7 @@ func (vv vecStringImpl) FindZeroRank(ind uint64, c byte) (uint64, bool) {
 }
 
 func (vv vecStringImpl) ExactMatch(ind uint64, str string) bool {
-	onePos := vv.lens.Select(ind, true)
-	beg := onePos - ind
-	l := vv.lens.RunZeros(onePos + 1)
+	beg, l := vv.OffsetAndLen(ind)
 	return string(vv.bytes[beg:beg+l]) == str
 }
 
