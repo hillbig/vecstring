@@ -2,7 +2,7 @@
 package vecstring
 
 import (
-	"github.com/hillbig/rsdic"
+	"github.com/hillbig/partialsum"
 	"github.com/ugorji/go/codec"
 )
 
@@ -30,8 +30,8 @@ type VecString interface {
 	// PrefixMatch returns true if V[ind] == Prefix of str, and returns false otherwise
 	PrefixMatch(ind uint64, str string) (uint64, bool)
 
-	// OffsetAndLen returns the offset and the length of V[ind]
-	OffsetAndLen(ind uint64) (uint64, uint64)
+	// LenAndOffset returns the length of V[ind] and len(V[0]+...+len(V[ind-1])
+	LenAndOffset(ind uint64) (uint64, uint64)
 
 	// MarshalBinary encodes VecString into a binary form and returns the result.
 	MarshalBinary() ([]byte, error)
@@ -62,39 +62,31 @@ type VecStringForWX interface {
 
 // New returns VecString with 0 strings.
 func New() VecString {
-	rsd := rsdic.New()
-	rsd.PushBack(true)
 	return &vecStringImpl{
-		lens:  rsd,
+		ps:    partialsum.New(),
 		bytes: make([]byte, 0),
 	}
 }
 
 // New returns VecStringForWX with 0 strings.
 func NewForWX() VecStringForWX {
-	rsd := rsdic.New()
-	rsd.PushBack(true)
 	return &vecStringImpl{
-		lens:  rsd,
+		ps:    partialsum.New(),
 		bytes: make([]byte, 0),
 	}
 }
 
 type vecStringImpl struct {
-	lens  rsdic.RSDic
+	ps    partialsum.PartialSum
 	bytes []byte
 }
 
-func (vv vecStringImpl) OffsetAndLen(ind uint64) (uint64, uint64) {
-	onePos := vv.lens.Select(ind, true)
-	nextOnePos := vv.lens.Select(ind+1, true)
-	offset := onePos - ind // zeroNum
-	l := nextOnePos - onePos - 1
-	return offset, l
+func (vv vecStringImpl) LenAndOffset(ind uint64) (uint64, uint64) {
+	return vv.ps.LookupAndSum(ind)
 }
 
 func (vv vecStringImpl) Get(ind uint64) string {
-	beg, l := vv.OffsetAndLen(ind)
+	l, beg := vv.LenAndOffset(ind)
 	return string(vv.bytes[beg : beg+l])
 }
 
@@ -103,19 +95,20 @@ func (vv vecStringImpl) GetByte(offset uint64) byte {
 }
 
 func (vv vecStringImpl) Num() uint64 {
-	return vv.lens.OneNum() - 1
+	return vv.ps.Num()
 }
 
 func (vv *vecStringImpl) TotalLen() uint64 {
-	return vv.lens.ZeroNum()
+	return vv.ps.AllSum()
 }
 
 func (vv vecStringImpl) IthCharInd(i uint64) uint64 {
-	return vv.lens.Rank(vv.lens.Select(i-1, false), true) - 1
+	ind, _ := vv.ps.Find(i)
+	return ind
 }
 
 func (vv vecStringImpl) Find(ind uint64, c byte) bool {
-	beg, l := vv.OffsetAndLen(ind)
+	l, beg := vv.LenAndOffset(ind)
 	for i := uint64(0); i < l; i++ {
 		if c == vv.bytes[beg+i] {
 			return true
@@ -125,7 +118,7 @@ func (vv vecStringImpl) Find(ind uint64, c byte) bool {
 }
 
 func (vv vecStringImpl) FindZeroRank(ind uint64, c byte) (uint64, bool) {
-	beg, l := vv.OffsetAndLen(ind)
+	l, beg := vv.LenAndOffset(ind)
 	for i := uint64(0); i < l; i++ {
 		if c == vv.bytes[beg+i] {
 			return beg + i, true
@@ -135,12 +128,12 @@ func (vv vecStringImpl) FindZeroRank(ind uint64, c byte) (uint64, bool) {
 }
 
 func (vv vecStringImpl) ExactMatch(ind uint64, str string) bool {
-	beg, l := vv.OffsetAndLen(ind)
+	l, beg := vv.LenAndOffset(ind)
 	return string(vv.bytes[beg:beg+l]) == str
 }
 
 func (vv vecStringImpl) PrefixMatch(ind uint64, str string) (uint64, bool) {
-	beg, l := vv.OffsetAndLen(ind)
+	l, beg := vv.LenAndOffset(ind)
 	for i := uint64(0); i < l; i++ {
 		if int(i) >= len(str) || vv.bytes[beg+i] != str[i] {
 			return i, false
@@ -150,17 +143,14 @@ func (vv vecStringImpl) PrefixMatch(ind uint64, str string) (uint64, bool) {
 }
 
 func (vb *vecStringImpl) PushBack(str string) {
-	for i := 0; i < len(str); i++ {
-		vb.lens.PushBack(false)
-	}
-	vb.lens.PushBack(true)
+	vb.ps.IncTail(vb.ps.Num(), uint64(len(str)))
 	vb.bytes = append(vb.bytes, []byte(str)...)
 }
 
 func (vs vecStringImpl) MarshalBinary() (out []byte, err error) {
 	var bh codec.MsgpackHandle
 	enc := codec.NewEncoderBytes(&out, &bh)
-	err = enc.Encode(vs.lens)
+	err = enc.Encode(vs.ps)
 	if err != nil {
 		return
 	}
@@ -175,7 +165,7 @@ func (vs vecStringImpl) MarshalBinary() (out []byte, err error) {
 func (vs *vecStringImpl) UnmarshalBinary(in []byte) (err error) {
 	var bh codec.MsgpackHandle
 	dec := codec.NewDecoderBytes(in, &bh)
-	err = dec.Decode(&vs.lens)
+	err = dec.Decode(&vs.ps)
 	if err != nil {
 		return
 	}
